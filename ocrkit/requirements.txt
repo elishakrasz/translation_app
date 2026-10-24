@@ -1,0 +1,6 @@
+anthropic>=0.40
+pytesseract>=0.3.10
+pdf2image>=1.16
+Pillow>=10
+numpy>=1.24
+python-dotenv>=1.0

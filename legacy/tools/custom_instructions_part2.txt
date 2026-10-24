@@ -1,0 +1,92 @@
+This is scholarly prose about Hasidism (Michael Rosen, The Quest for Authenticity: The Thought of Reb Simhah Bunim). Use the established Hebrew names for people, works and places.
+
+FORMAT. Keep footnote markers such as ^12^ exactly where they are (same Markdown superscript syntax, same number), and translate the Notes section too; keep note numbers like `12\.` at the start of each note. Keep every paragraph as one paragraph (the Hebrew must have exactly as many paragraphs, in the same order, as the English — split or merge sentences only inside a paragraph). Keep block quotations (`>`) and headings as they are.
+
+THE STYLE OF THIS TRANSLATION (meaning wins over register, register wins over flow):
+1. **Literal in meaning.** The author's argument, claims, qualifications, modality ("could well argue", "perhaps") and technical terms are rendered exactly. Interpretive statements are neither softened nor sharpened; nothing is added or explained that the English does not say.
+2. **Torah-scholarly in wording.** The Hebrew is written as a Hebrew-writing talmid hakham or scholar of Hasidism would write — not as a calque of English academic prose. Established concepts and expressions are preferred (ספרות חז"ל, העבודה שבלב, לימוד תורה, דרך חדשה), with the customary forms of names and honorifics (ר', הקב"ה), and rabbinic Hebrew or Aramaic phrasing where it is natural and clear. This register is deliberate, not "ornate".
+3. **Literary in flow.** Natural Hebrew word order, varied sentence rhythm, cohesive transitions. English constructions carried over ("במונחים של", "באופן ש…", "מה שמעניין הוא", stacked "כאשר" clauses, passive "נעשה על ידי") are calques and are errors.
+4. **Sentences may be split or merged** where Hebrew requires; this is not a fidelity error. Paragraph order and the argument's structure are preserved.
+5. **Quotations from Hasidic and classical sources are given in the original Hebrew** wherever the original has been verified; those paragraphs are the source text itself and are outside the scope of fidelity review. Quotations not yet verified are translated in the Hebrew style of Hasidic literature (אמר, והנה, דהיינו) — that register is deliberate.
+6. **No added glosses.** Nothing is explained that the English does not explain. The author's own glosses may be kept or dropped when they would merely repeat a Hebrew word (e.g. "tikkun (a fixing)").
+7. The author's English metaphors are kept. Yiddish words are kept in Yiddish (in Hebrew letters). Neither is an error.
+8. "Piety" is יראת שמים and "pious" ירא שמים — never חסידות/חסיד, which denote the Hasidic movement and its followers (deliberate wordplay on חסידות is the only exception).
+9. Terminology follows the decided-terms list and the paragraph's required terms exactly (inflected as grammar requires).
+10. Unvocalized text; niqqud only where a decided term carries it.
+11. **Names of God:** א־לוהים, א־לוהות, א־לוהי; ה' in fixed phrases; הקב"ה in set phrases — never אלוהים, אלוהות or האל in translated text (decided 2026-10-05; see decided-terms).
+Base register: Rav Adin Steinsaltz — clear explanatory Hebrew whose rhythm unpacks the meaning, as if the material were being taught. Full spelling (כתיב מלא).
+
+SOURCES. Quote biblical and Talmudic passages in their original Hebrew. For quotations from other Hebrew or Yiddish sources, translate the English into Hebrew in the style of Hasidic literature and do not try to reconstruct the original wording. Text that is already in Hebrew in the source stays exactly as it is. Where you are unsure of a verse, a citation or the standard Hebrew form of a name or title, write your best rendering and add [לבדיקה] right after it.
+
+FIXED TERMS (these override the term table; inflect as grammar requires):
+| Przysucha | פשיסחא |
+| the Yehudi | היהודי |
+| R. Bunim | ר' בונים |
+| the Seer (of Lublin) | החוזה (מלובלין) |
+| the Kotzker | הרבי מקוצק |
+| Menahem Mendel of Kotzk (full name) | הרבי מנחם מנדל מקוצק |
+| Hiddushei ha-Rim (the person) | בעל חידושי הרי"ם |
+| Zaddikism | אמונת צדיקים |
+| authenticity | אותנטיות |
+| truthfulness | אמתיות |
+| ulterior motive | פנייה |
+| passion | להט |
+| purity of motive | טוהר המניע |
+| routine | שגרה |
+| externals | חיצוניות |
+| inner life force | חיוּת פנימית |
+| groundedness | קרקעיות |
+| vicarious redemption | גאולה בשליחות |
+| moreh derekh | מורה דרך |
+| dynasty / dynastic succession | שושלת / ירושה תורשתית |
+| routinization of charisma | רוטיניזציית הכריזמה |
+| ba'al davar | בעל דבר |
+| homo religiosus | האדם הדתי |
+| devekut | דבקות |
+| Torat Adam | תורת האדם |
+| frumkeit | "פרומקייט" (אדיקות) |
+| reshimu | רְשימוּ |
+| nothingness (ayin) | אַיִן |
+| self-doubt | ספק עצמי |
+| becoming / standing | מהלך / עומד |
+| greatness (of a person) | אדם גדול (never bare גדולה or גדלות) |
+| excommunicate / ban | להחרים (not לנדות) |
+| to submit to a zaddik's charisma | להתבטל מפני |
+| to internalize | להפנים |
+| rejuvenation within Hasidism | לחדש את החסידות מתוכה |
+| Hashavah le-Tovah (title) | חשבה לטובה |
+| Or la-Shamayim (title) | אור לשמים |
+| ego | אגו |
+
+NAMES OF GOD: א־לוהים (never אלוהים), א־לוהות, א־לוהי / א־לוהית for "divine"; ה' in fixed phrases (עבודת ה', דבר ה'); הקב"ה in set phrases; האל is never used. Biblical and Talmudic quotations in the original keep their printed spelling.
+
+NAMES. 'the Kotzker' is הרבי מקוצק; after the first full mention in a paragraph you may use a short customary form (ר' מנחם מנדל, ר' בונים, היהודי). 'piety' is יראת שמים and 'pious' is ירא שמים — never חסידות/חסיד.
+
+BIBLIOGRAPHY. Hebrew and Yiddish article/book titles: use the published Hebrew title only if you are sure of it; otherwise translate it and add [לבדיקה]. Translate titles per the term table, render 'Ch.' as פרק, 'par.' as פרשת, 'vol.' as כרך, 'b. Berakhot 5b' as ברכות ה ע"ב; modern scholars' names in Hebrew letters per the term table; modern English-language works keep their English title. '(AZ)' after Ramatayim Zofim means the Eliyahu Zuta section: write (אליהו זוטא). (Footnote layout will be brought into the house style later; translate the notes faithfully now.)
+
+CONTEXT-DEPENDENT RENDERINGS in these chapters (the term table gives the default; use these where the context matches):
+- Exodus: Keep יציאת מצרים for the event; render the book in references as שמות (added as 'Exodus (book)' in the proposals).
+- modesty: צניעות for the sexual/dress sense (ch07 n.90; ch08 ¶35); שפלות (or ענווה ושפלות as in the source) in 'modesty and humility'; 'the same modest person' → עניו. Keep הצנע לכת only where Micah 6:8 is meant.
+- Hell: Keep גיהנום by default and in 'from the Garden of Eden to Hell'; use אבדון where Rosen gives avadon, and the source wording (e.g. שאול תחתית) in the R. Hanoch Heinich quotation.
+- Maggid: Render bare 'the Maggid' in ch09 ¶64–66 as המגיד (מקוז'ניץ), with the place on its first mention; don't auto-expand to ממזריטש.
+- Rabbi of Lublin: Check the source; if it is the Seer, render 'חתנו של הרבי מלובלין' (or החוזה). Don't apply the Azriel Horowitz alias automatically.
+- Hiddushei ha-Rim: Person → בעל חידושי הרי"ם (decided term overrides the glossary target, which should be corrected); book citations in notes → חידושי הרי"ם (italic, as a work).
+- Habad: Keep the book title in English italics (Habad), like other English titles; חב"ד for the movement.
+- Tabernacle: Render חג הסוכות; take care that automatic matching of 'Tabernacle' does not catch 'Tabernacles'.
+- mind: Keep שכל for intellect ('Mind is a gift of God', ch08 ¶90); use דעת in the preparation idioms (להכין את דעתו, לכוון את דעתו, יישוב הדעת).
+- sincerity: Use לשמה / שלא לשמה in that passage and in Przysucha's reply ('If it's insincere, don't do it'); keep כנות elsewhere.
+- greatness: Divine attribute: גדולתו / גדולת הבורא (outside the scope of the human-greatness rule; in verified quotations keep the original). Human: recast with אדם גדול as the rule requires, e.g. 'the thrill of being in the presence of a great man' → בנוכחותו של אדם גדול; 'his greatness as a teacher' → מה שהיה כמורה גדול; translator to confirm the divine exception explicitly.
+- mind: Keep שכל where Rosen contrasts mind/intellect with heart (ch10 ¶9 'just as "mind" was not limited to the study of Talmud'). 'state/frame of mind' → הלך נפש / מצב תודעה; 'settle your mind' → יישב דעתך (see settling of the mind); 'distracts his mind' → מבלבל את דעתו; 'mind and heart at one' → כשהדעת והלב מאוחדים.
+- Hiddushei ha-Rim: Person → בעל חידושי הרי"ם (decided); book → ספר חידושי הרי"ם in body, חידושי הרי"ם (italic/title) in notes.
+- Sefat Emet: Person → בעל שפת אמת; book (notes: Sefat Emet, par. Vaera) → שפת אמת.
+- Shem mi-Shmuel: Person → בעל שם משמואל; book in notes unchanged.
+- Peretz: Render as י"ל פרץ (new entry 'I.L. Peretz'); never apply ר' פרץ automatically to bare 'Peretz' here.
+- modesty: Keep הצנע לכת for concealed piety; here → צניעות.
+- secular: 'secular authorities' → השלטונות (השלטון הנכרי if context needs); 'secular enlightenment' → ההשכלה; keep חילוני for 'a secular profession' and 'the secular person/world'.
+- passion: Rosen's own voice: להט as decided ('passion for truth' = להט האמת). Inside translated hasidic quotations whose original uses התלהבות, follow the original (תפילה בהתלהבות); verified quotations keep their wording anyway.
+- Divine providence: Ch10 (Besht, thoughts sent to a person) → השגחה פרטית as settled; ch12 theological problem → ההשגחה (בעיית ההשגחה).
+- Meor Einayim: Same Hebrew title; no gloss added, but do not link/index it to the Chernobyl work.
+- integrity: יושרה.
+- talisman: סגולה (not קמע).
+
+In your translator's notes file (named in your task), list every [לבדיקה] item, every place you departed from the term table and why, and any suspected error in the English source.

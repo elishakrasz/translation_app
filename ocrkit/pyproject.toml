@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ocrkit"
+dynamic = ["version"]
+description = "OCR scanned books with Tesseract, then proofread the OCR with Claude"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "anthropic>=0.40",
+    "pytesseract>=0.3.10",
+    "pdf2image>=1.16",
+    "Pillow>=10",
+    "numpy>=1.24",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+ocrkit = "ocrkit.__main__:main"
+
+[tool.setuptools]
+packages = ["ocrkit"]
+
+[tool.setuptools.dynamic]
+version = {attr = "ocrkit.__version__"}

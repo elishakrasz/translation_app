@@ -1,0 +1,18 @@
+# secrets and local environment
+.env
+.venv/
+
+# build and test leftovers
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.DS_Store
+
+# installed packages (restore with: cd legacy/tools/node_docx && npm ci)
+node_modules/
+
+# documents dropped in the root folder (scans, drafts) stay local
+/*.pdf
+/*.docx
+/*.doc
