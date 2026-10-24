@@ -17,6 +17,8 @@ from collections import Counter
 
 NOTES_SEP = "--- notes ---"
 REF_RE = re.compile(r"\^(\d+)\^")
+# A reference the model left unclosed: ^12 or ^* not followed by a closing ^.
+UNCLOSED_REF_RE = re.compile(r"\^(\d+|\*)(?![\d*^])")
 NOTE_LINE_RE = re.compile(r"^(\d+)\.\s", re.M)
 CONT_LINE_RE = re.compile(r"^\(cont\.\)\s", re.M)
 DOUBT_RE = re.compile(r"\{\?([^{}]*)\}")
@@ -36,6 +38,20 @@ def split_printed_page(text):
         n = PRINTED_RE.match(lines[-1].strip()).group(1)
         return "\n".join(lines[:-1]).rstrip(), n
     return text.rstrip(), None
+
+
+def close_refs(text):
+    """Write every footnote reference as ^n^: models sometimes drop the closing caret (^12)."""
+    return UNCLOSED_REF_RE.sub(r"^\1^", text)
+
+
+# The notes separator as models sometimes write it: ---notes---, -- Notes --, --- note ---.
+LOOSE_SEP_RE = re.compile(r"^[ \t]*-{2,}[ \t]*notes?[ \t]*-{2,}[ \t]*$", re.I | re.M)
+
+
+def normalise(text):
+    """The page format's markers in their one written form: closed references, the exact notes separator."""
+    return LOOSE_SEP_RE.sub(NOTES_SEP, close_refs(text))
 
 
 def split_body_notes(text):

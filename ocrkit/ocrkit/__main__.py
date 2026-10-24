@@ -4,6 +4,7 @@ ocrkit command line.
     python -m ocrkit ocr BOOK.pdf DIR [--lang heb] [--split-2up] [--rtl auto|yes|no]
     python -m ocrkit proofread DIR [--batch] [--repair] [--pages 1,7-9] [--all]
     python -m ocrkit render DIR          rewrite ocr.txt, proof.txt and proof-report.md
+    python -m ocrkit recheck DIR         run the checks again on the proofread text (no API call)
     python -m ocrkit import-txt OLD.txt DIR [--images OLD_pages/]
 """
 
@@ -53,6 +54,9 @@ def main(argv=None):
     r = sub.add_parser("render", help="rewrite the text files and the report from the records")
     r.add_argument("dir")
 
+    c = sub.add_parser("recheck", help="run the checks again on the proofread text, without calling the API")
+    c.add_argument("dir")
+
     i = sub.add_parser("import-txt", help="turn an old PAGE-marker text file into DIR/ocr.jsonl")
     i.add_argument("txt")
     i.add_argument("dir")
@@ -80,6 +84,12 @@ def main(argv=None):
         (d / "ocr.txt").write_text(rec.render_pages({n: x["text"] for n, x in ocr.items()}), encoding="utf-8")
         _, path = pr.finish(d, d / "proof.jsonl", ocr, pr.CHANGE_FLAG)
         print(f"✓ Wrote ocr.txt, proof.txt and {path.name}")
+    elif a.cmd == "recheck":
+        from . import proofread as pr
+        updated, failed = pr.recheck(a.dir)
+        print(f"✓ Rechecked {a.dir}: {len(updated)} page(s) updated {updated if updated else ''}")
+        for n, reason in failed:
+            print(f"  ⚠ page {n} now fails a check and was left as it was: {reason}")
     elif a.cmd == "import-txt":
         from .ocr import import_legacy
         import_legacy(a.txt, a.dir, a.images, a.lang)

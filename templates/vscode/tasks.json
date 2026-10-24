@@ -1,0 +1,7 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "translator status", "type": "shell", "command": "{{TRANSLATOR}} status", "problemMatcher": [] },
+    { "label": "translator doctor", "type": "shell", "command": "{{TRANSLATOR}} doctor", "problemMatcher": [] }
+  ]
+}

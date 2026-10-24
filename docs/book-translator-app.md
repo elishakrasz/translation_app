@@ -31,7 +31,7 @@ pages, record IDs, engine location). Built from:
 11. [Running agents](#11-running-agents)
 12. [Shared resources](#12-shared-resources)
 13. [Testing](#13-testing)
-14. [Migrating `the_translator/`](#14-migrating-the_translator)
+14. [What the app takes from `the_translator/`](#14-what-the-app-takes-from-the_translator)
 15. [Build plan](#15-build-plan)
 16. [Open questions](#16-open-questions)
 17. [Appendices](#appendices)
@@ -106,7 +106,7 @@ styles beyond making room for them (section 3).
 ├── catalog.yaml                         every book: title, edition, year, scan folder, numbering notes
 └── quotations.jsonl                     VERIFIED QUOTATIONS — grows with every book
 
-~/Projects/<book>/                       PROJECT — one per book, its own git repository
+~/translation_app/projects/<book>/      PROJECT — one per book; kept out of the app's repository
 ```
 
 `ocrkit` is its own package inside the engine folder, `~/translation_app/ocrkit/`, used by Step 0 and by the
@@ -116,9 +116,11 @@ the app:
 
 - a `pyproject.toml` with an `ocrkit` console script; installed with `pip install -e ~/translation_app/ocrkit` into the engine's venv
 - `ocrkit/__main__.py` reads `~/.config/translator/.env` after any `.env` found from the working folder, so one key file serves every project and the library
+- the model's slips in the page format are normalised before the checks: an unclosed reference `^4` becomes `^4^`, and a notes separator written `---notes---` becomes `--- notes ---` (both found on the first book)
+- `ocrkit recheck DIR` reruns the checks on the saved proofread text without calling the API, for pages proofread before a check was added
 - two test fixes: `test_proofread.py` imports `httpx2` (the `anthropic` 2.x library is built on it, not on `httpx`), and `test_ocr_e2e.py` finds a macOS font with Hebrew (it looked only for a Linux font, so the OCR tests always skipped on the Mac)
 
-All 27 tests pass on the Mac, including the two that run real Tesseract on generated Hebrew and English scans.
+All 30 tests pass on the Mac, including the two that run real Tesseract on generated Hebrew and English scans.
 
 The engine lives in `~/translation_app/`, next to the other projects in the home folder (`the_translator/`,
 `the_melamed/`), and not inside `~/.claude/`, because it holds a package, a virtual environment and tests. Only
@@ -127,7 +129,7 @@ engine folder. `~/.claude/skills/synced/` is managed by Claude and is left alone
 
 All the app's code lives in `~/translation_app/`: the engine, `ocrkit`, and (until they are ported into the
 `translator` package) Rosen's tools in `legacy/`. Book files don't: each book is its own project under
-`~/Projects/`, and `the_translator/` keeps Rosen's book files until the migration (section 14) has moved them out.
+`~/translation_app/projects/` (ignored by the app's git), and Rosen's book stays in `the_translator/` (section 14).
 
 **The legacy tools run from here against a book folder.** In the copies, every tool that used to find its files
 from its own location (`ROOT = Path(__file__).resolve().parent.parent`, 29 scripts) reads the book folder from
@@ -179,8 +181,8 @@ so they work whether or not the virtual environment is active in the shell that 
 ### Start a book
 
 ```bash
-translator init ~/Projects/rosen-quest --house koren --title "The Quest for Authenticity" --author "Michael Rosen"
-code ~/Projects/rosen-quest
+translator init ~/translation_app/projects/stop-look-listen --house koren --title "Stop, Look, Listen"
+code ~/translation_app/projects/stop-look-listen
 ```
 
 In VS Code, the Claude Code panel opens in the project folder and reads its `CLAUDE.md`. Type `/status` to see
@@ -196,6 +198,9 @@ where every unit stands.
 ---
 
 ## 5. The project folder
+
+The examples in this section and the next use the Rosen book, where the problems they solve came up. The first
+real project is `projects/stop-look-listen/`.
 
 ### Layout
 
@@ -1057,82 +1062,58 @@ publisher gets a second folder; `project.yaml` names the house.
 
 ---
 
-## 14. Migrating `the_translator/`
+## 14. What the app takes from `the_translator/`
 
-1. **Git first.** `git init` in `the_translator/`, with an ignore file for scans, `backups/` and `work/`. `.gitignore` can't filter by size, so first list the files over 50 MB (`find . -size +50M`), and add each one to the ignore file by name or move it to the reference library. Then install the same pre-commit size check the projects use. Commit as is: this is the reference point for everything after.
-2. **Inventory** of `tools/`: for each script, its inputs, outputs, hard-coded paths, and any Rosen-specific logic. A first pass is in Appendix A; the full version goes in `docs/tools-inventory.md`. This is where the estimate in section 15 firms up.
-3. **Engine skeleton:** the `translator` package and CLI, with the existing scripts moved in unchanged behind commands. Each takes the project folder (or reads `project.yaml` from the current folder) instead of assuming it runs in `the_translator/`.
-4. **Import the corrected Word masters first,** with today's `tools/import_corrected.py`. Until then, the text of record for those units is `drafts/updates/chNN-*-koren-edited-corrected.docx`, not the chunk files (`CLAUDE_index.md` §2). Run `check_structure.py` after the import. No migration step runs on a unit whose Word master hasn't been imported.
-5. **Rosen as the first project:** create `rosen-quest/` with `translator init`, move the book's files into the new layout (a migration script, dry run first; the map is below), and move the Rosen-specific logic into its `project.yaml`.
-6. **Records from the old logs:** importers for the sources logs, `work/editor-notes/chNN.md`, cleaning logs, translator notes, `sources/quotations-status.xlsx` and the footnote spreadsheet, writing `quotations.jsonl`, `author-questions.jsonl` and `decisions.jsonl`; and `sources/style/bibliography.json` into `bibliography.jsonl`. The importers are where the 264-of-570 problem gets fixed, once.
-7. **IDs for Rosen:** with step 4 done, the chunk files are the text of record, so IDs can be assigned to them now. The same pass converts every existing paragraph reference to the new IDs: the index anchors (`chNN·CCCC·P`, in `work/index/` and any `entries/chNN.yaml`), the `eval/aligned/` records, and the paragraph numbers in the logs the importers read. A reference that can't be converted is reported, never guessed. The next Koren build carries the bookmarks.
-8. **Briefs to templates:** `tools/custom_instructions.txt`, `custom_instructions_part2.txt` and the `*-brief.md` files become Jinja templates with the book's name, register and paths as variables. The binding parts of `CLAUDE_addendum.md` (the style workflow, the fixed conventions, the working rules) go into the engine's briefs and the generated `CLAUDE.md`; the Rosen-specific values (Steinsaltz register, "greatness" → אדם גדול) go into the project.
-9. **Rosen passes `translator check`** with the same result as today's checks. Only then does a new book start on the app.
+The Rosen translation is not moved onto the app; it stays in `the_translator/` as it is. The first book on the app
+is a new one, *Stop, Look, Listen* (`projects/stop-look-listen/`). What Rosen gives the app is its method and
+its reusable material:
 
-**Where Rosen's files go**
+| From `the_translator/` | Goes to | Status |
+| --- | --- | --- |
+| `tools/`, `translate-book/`, `eval/` and its tests | `legacy/`, then ported into the `translator` package one command at a time (Appendix A) | copied; 29 tools read the book folder from `TRANSLATOR_PROJECT` |
+| `custom_instructions*.txt`, the `*-brief.md` files, `sources/integration_rules.md` | the engine's brief templates, with the book's name, register and terms as variables (milestone 11) | to do |
+| `CLAUDE_addendum.md` (style workflow, fixed conventions, working rules) | the engine's briefs and generated `CLAUDE.md`; Rosen's own values (Steinsaltz register, "greatness" → אדם גדול) stay with Rosen | written into Steps 2a and 9 |
+| `CLAUDE-CODE-eval-passes.md` | `translator eval` (Step 8) | written into Step 8 |
+| `CLAUDE_index.md` | `houses/koren/index-spec.md` (the house rules); the book-level parts are a model for each new book's `index/` | written into Step 14 |
+| `sources/style/footnote-style.md`, `sources/style/koren/` | `houses/koren/` | to do |
+| `eval/decided-terms.md`, `glossary/glossary-book.json` | a starting point for a new book's decided terms where the subject overlaps (Hasidic terms, names of masters, divine names); each term is confirmed for the new book, never copied blindly | to do, per book |
+| `style-corpus/`, `style/` (profiles, comparison) | reusable for a new book in the same register; the comparison is redone against the new book's author | per book |
+| verified quotations (sources logs, `quotations-status.xlsx`) | the library's `quotations.jsonl`, keyed by work, edition and locator, so a new book's sources round finds them first | importer to do (milestone 7) |
+| scanned seforim (`Tiferet/`, `sources/hb/`, `texts/`, `keter.pdf`, `Mickey*.pdf` and their OCR) | the reference library, through `ocrkit import-txt` where only old OCR exists | to do (milestone 7) |
+| `sources/style/bibliography.json`, `work/bibliography/reshimat-kitzurim.md` | the library's bibliography: short forms and full entries a new book can reuse | to do |
 
-| `the_translator/` | `rosen-quest/` (or the engine) |
-| --- | --- |
-| `chNN-*_temp/chunkNNNN.md`, `output_chunkNNNN.md`, `manifest.json` | `units/chNN-<slug>/` |
-| `holy-rebellion-2-clean_temp/` and other `*_temp` variants | compared with the unit they shadow; kept only if they hold something the unit lacks |
-| `drafts/koren/` | `drafts/koren/` |
-| `drafts/updates/*-koren-edited*.docx` | `drafts/word/` (after step 4) |
-| `books/The Holy Rebelion 2.docx` | `source/original/` |
-| `books/holy-rebellion-2-clean.*`, `holy-rebellion-2-CHANGES.md`, `books/cleaning/` | `source/cleaned/`; the change list feeds `edits.jsonl` |
-| `books/chapters/` | `source/cleaned/` (with the English indexes `ch21b`, `ch22`, `ch23`) |
-| `style-corpus/<author>/` | `style/corpus/<author>/` |
-| `texts/` (Halbertal, Shagar, Steinsaltz) | the reference library, as the source works the corpus samples come from |
-| `reports/chNN-diagnosis.md` | `review/style/chNN/diagnosis.md` |
-| `style/` (profiles, comparison, style sheet) | `style/` |
-| `glossary/glossary-book.json` | `terms/glossary.json` (the `glossary-book.before-*` copies stay in git history only) |
-| `eval/decided-terms.md` | `terms/decided-terms.yaml` |
-| `eval/style-sheet.md` | dropped: generated from `style/style-sheet.md` |
-| `eval/` (code), `eval/cache/` | the engine (`translator eval`); the cache moves to `work/eval/cache/` |
-| `sources/style/footnote-style.md`, `sources/style/koren/` | `houses/koren/` in the engine |
-| `sources/style/bibliography.json` | `records/bibliography.jsonl` |
-| `work/bibliography/reshimat-kitzurim.md` | `out/reshimat-kitzurim.md` (rendered from the records) |
-| `sources/quotations-status.xlsx`, sources logs | `records/quotations.jsonl` (the sheet is generated from it afterwards) |
-| `work/editor-notes/` | `records/author-questions.jsonl` |
-| `work/index/` | `index/`; `scripts/` move into the engine |
-| `CLAUDE_index.md` | split between `houses/koren/index-spec.md` and the project's `index/` (Step 14) |
-| `review/`, `compare/`, the rest of `reports/` | `review/`; kept as they are, read-only |
-| `sources/` (bundles, logs, `integration_rules.md`, `hebrew-sources-tracker.xlsx`) | logs and sheets → the records importers (step 6); `integration_rules.md` → the sources brief; `download_sefaria_sources.py` → the engine |
-| scanned seforim (`Tiferet/`, `sources/hb/`, `keter.pdf`, `Mickey*.pdf`, `books/mickey_*_proofread.txt`, `mickey*_ocr_proofread.txt`) | the reference library, through `ocrkit import-txt` where only old OCR exists |
-| `eval`'s tests (`tests/test_align.py`, `test_schema.py`) | the engine's tests |
-| `lait/` (LiTransProQA, a third-party evaluation tool) | left where it is; not part of the app |
-| `backups/` | not migrated: the git commit in step 1 holds them |
-| `translate-book/` | vendored into the engine |
-
----
+Not taken: Rosen's chapter files, drafts, Word masters, reviews and logs. They belong to that book.
 
 ## 15. Build plan
 
-Estimates are working days of focused work with Claude Code. Milestones 2 and 4 are the soft ones until the
-inventory (milestone 0) is done.
+Estimates are working days of focused work with Claude Code. The first book, *Stop, Look, Listen*, is already
+waiting, so the order lets it start the early steps (OCR, cleaning, foundations) while the later machinery is built.
 
 | # | Milestone | Contents | Est. |
 | --- | --- | --- | --- |
-| 0 | Git and inventory | Migration steps 1–2, and step 4 (the pending Word import, with today's tools) | 1–2 |
-| 1 | Engine skeleton | Package, CLI, `init`, `upgrade`, `project.yaml`, generated `CLAUDE.md` and `state.md`, slash commands, `doctor` | 3 |
-| 2 | Tools on the project root | Existing tools behind commands, paths from the project, Rosen logic into `project.yaml` | 3–5 |
+| 0 | Repository and inventory | The app's repository; `ocrkit` installed; `legacy/` copied and pointed at a book folder; the tools inventory (Appendix A) | done |
+| 1 | Engine skeleton | Package, CLI, `init`, `upgrade`, `project.yaml`, generated `CLAUDE.md` and `state.md`, slash commands, `doctor`. **Done 24 Oct 2026**, with Step 1 (`clean`, `chunk` with permanent IDs) and a first `gate`; 5 tests | done |
+| 2 | Tools on the project root | Legacy tools behind commands, paths from the project, chapter lists and labels from `project.yaml` | 3–5 |
 | 3 | State, gates, check, hooks | `state.yaml` and hashes, refusals, `gate`, `check`, pre/post-edit hooks with their self-test, git lock and commits, pre-commit size check, reruns on named IDs | 4–5 |
 | 4a | Word bookmark trial | Build a draft with bookmarks; make every edit in the section 6.1 table in real Word; confirm what Word does; this becomes the fixture's Word edit | 1 |
 | 4 | Stable IDs end to end | IDs at chunking, translation brief, structure check, Koren bookmarks, bookmark import, round-trip test with normalisation | 5–7 |
-| 5 | Records | Schemas, writers in each step, ID assignment at merge, `quote amend`, reports generated from records, importers from the Rosen logs | 4–5 |
-| 6 | OCR as Step 0 | `ocrkit` (installed and tested; section 3) wired into `/ocr` and `translator clean` | 1 |
-| 7 | Library | `catalog.yaml`, `find` over the library, verified-quotation library keyed by edition | 2–3 |
+| 5 | Records | Schemas, writers in each step, ID assignment at merge, `quote amend`, reports generated from records | 3–4 |
+| 6 | OCR as Step 0 | `ocrkit` wired into `/ocr` and `translator clean`. **Done 24 Oct 2026**: `/ocr` command; `ocrkit` normalises references and the notes separator, and `ocrkit recheck` reruns the checks on saved pages without the API (30 tests) | done |
+| 7 | Library | `catalog.yaml`, `find` over the library, verified-quotation library keyed by edition, importers for Rosen's verified quotations, seforim and bibliography (section 14) | 3–4 |
 | 8 | Fixture and tests | Fixture book, golden outputs, unit tests | 2–3 |
 | 10 | Review pages | `translator serve`, saving decisions, the download fallback, the existing review pages moved onto it | 2–3 |
-| 11 | Briefs to templates | Migration step 8: briefs and `custom_instructions*.txt` as Jinja templates, rendered and checked against the Rosen originals | 2 |
-| 12 | Outside evaluation | Rosen's `eval/` moved into the engine; pairs from stable IDs; glossary, decided terms and style sheet read from the project; findings into `findings.jsonl` | 1–2 |
-| 9 | Rosen migration complete | Migration steps 4–7 and 9; Rosen passes `check` | 2–3 |
+| 11 | Briefs to templates | Rosen's briefs and `custom_instructions*.txt` as Jinja templates (section 14), rendered and checked against the originals | 2 |
+| 12 | Outside evaluation | `legacy/eval/` moved into the engine; pairs from stable IDs; glossary, decided terms and style sheet read from the project; findings into `findings.jsonl` | 1–2 |
+| 9 | First book through the pilot | *Stop, Look, Listen*: Steps 0–3 on the app, the pilot chapter through Steps 4–12 | runs alongside |
 
-Total: roughly 33–45 days. Order: 0 → 1 → 2 → 3 → 4a → 8 (tests early, so the riskier milestones are covered;
-4a first, so the fixture records what Word really does) → 4 → 5 → 11 → 10 → 12 → 6 → 7 → 9. Milestone 4 is the
+Total: roughly 31–42 days of building. Order: 1 → 6 → 2 → 3 → 4a → 8 (tests early, so the riskier milestones are
+covered; 4a first, so the fixture records what Word really does) → 4 → 5 → 11 → 10 → 7 → 12. Milestone 6 comes
+early because the first book's OCR is done and its cleaning (Step 1) can start; Step 2 (foundations) needs no new
+machinery and can run alongside milestones 2–4. Milestone 4 is the
 one most likely to run over; 4a is there so its surprises appear in a day, not in the middle of it.
 
 Milestones 1–3 alone already give per-book folders, enforced order, the hooks and git. Each milestone ends with
-`check` passing on Rosen.
+`check` passing on the fixture book and on *Stop, Look, Listen* as far as it has gone.
 
 ---
 
@@ -1153,24 +1134,24 @@ Milestones 1–3 alone already give per-book folders, enforced order, the hooks 
 ### A. Old tools → new commands
 
 From an inventory of `the_translator/tools/` (45 scripts, 24 October 2026). The full inventory, with inputs, outputs
-and line numbers, goes into `docs/tools-inventory.md` (migration step 2).
+and line numbers, goes into `docs/tools-inventory.md`.
 
 | Old (`tools/`) | New | Notes from the inventory |
 | --- | --- | --- |
 | `build_prompts.py` | `translator translate prompts` (and `translate log`, new) | Target language "Hebrew" and the brief's file name are hard-coded; calls translate-book's `glossary.py` and `chunk_context.py` |
-| `custom_instructions.txt`, `custom_instructions_part2.txt` | brief templates (migration step 8) | Part 2's "context-dependent renderings" point at paragraph numbers (ch08 ¶35, ch09 ¶64–66): converted to stable IDs in migration step 7 |
+| `custom_instructions.txt`, `custom_instructions_part2.txt` | brief templates (milestone 11) | Part 2's "context-dependent renderings" point at Rosen paragraphs (ch08 ¶35, ch09 ¶64–66); they stay with Rosen and are not carried into the templates |
 | `check_structure.py` | `translator check structure` (also in the post-edit hook) | Generic already |
 | `build_draft.py` | `translator draft` (HTML) | |
 | `draft_data.py`, `build_draft_docx.js` | `translator draft --docx` | Missing from the first mapping; the book's title is hard-coded in the docx creator string |
 | `build_glossary_page.py`, `apply_glossary_edits.py` | `translator glossary review / apply` | The current pair; chapter lists ch01–06 / ch07–12 hard-coded |
 | `build_glossary_review.py`, `apply_glossary_review.py` | dropped | The earlier pair, replaced by the two above |
-| `merge_decided_terms.py` | `translator terms merge` | Its term list is hard-coded (`DECIDED`), not read from `eval/decided-terms.md` as its docstring says. Migration: build `decided-terms.yaml` from both and report every difference |
+| `merge_decided_terms.py` | `translator terms merge` | Its term list is hard-coded (`DECIDED`), not read from `eval/decided-terms.md` as its docstring says. When it is ported, the terms come from the project's `decided-terms.yaml` |
 | `conform_terms.py` | `translator terms conform` | Already dry-run by default; limited to ch01–06 |
 | `names_of_god.py` | `translator check divine-names` | Limited to ch01–06 |
 | `consistency_sweep.py` | `translator terms sweep`, `translator check spelling` | Covers ch01–12; its spelling variants (`VARIANTS`) seed the spelling policy |
 | `build_pairs.py`, `build_review.py`, `apply_review.py` | `translator review pairs / build / apply` | Reviewer models fixed to Fable/Opus in `build_review.py`; read from `project.yaml` instead |
 | `find_source.py` | `translator find` (over the library) | Its HebrewBooks titles (`TITLES`) seed `catalog.yaml` |
-| `build_quotes_sheet.py`, `quotes_add_parsha.py` | `translator sources sheet` (from `quotations.jsonl`) | Together they make `quotations-status.xlsx`; `quotes_add_parsha.py` only works when run from the project root. Both feed the importer in migration step 6 |
+| `build_quotes_sheet.py`, `quotes_add_parsha.py` | `translator sources sheet` (from `quotations.jsonl`) | Together they make `quotations-status.xlsx`; `quotes_add_parsha.py` only works when run from the project root. Rosen's sheet feeds the library's verified-quotation importer (milestone 7) |
 | `build_sources_sheet.py` | `translator sources tracker` | A separate workbook of sources and notes still to verify; ch01–04 hard-coded |
 | `build_sources_overview.py` | `translator sources overview` | Per-note data hard-coded (`STEP2`); this becomes records |
 | `build_notes_input.py`, `build_notes_review.py`, `apply_notes_review.py` | `translator notes input / review / write` | `write` applies only the accepted notes |

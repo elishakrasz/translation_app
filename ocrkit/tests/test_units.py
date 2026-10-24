@@ -26,6 +26,15 @@ class TextFormat(unittest.TestCase):
         self.assertEqual(tf.refs(body), [12, 12, 12])
         self.assertEqual(tf.note_numbers(notes), [12])
 
+    def test_close_refs(self):
+        self.assertEqual(tf.close_refs('on Monday."^4\n> quote.^5 Next ^*'), 'on Monday."^4^\n> quote.^5^ Next ^*^')
+        self.assertEqual(tf.close_refs("kept.^12^ and ^3^"), "kept.^12^ and ^3^")
+
+    def test_loose_notes_separator(self):
+        for sep in ("---notes---", "-- Notes --", "--- note ---"):
+            self.assertEqual(tf.normalise(f"body\n{sep}\n(cont.) end"), "body\n--- notes ---\n(cont.) end")
+        self.assertEqual(tf.normalise("a -- notes -- b"), "a -- notes -- b")   # only a line of its own
+
     def test_continuation_and_doubtful(self):
         t = "a {?wrod} b\n--- notes ---\n(cont.) rest of note\n13. next"
         self.assertTrue(tf.has_continuation(tf.split_body_notes(t)[1]))
@@ -57,6 +66,12 @@ class Checks(unittest.TestCase):
         for name, (resp, stop) in cases.items():
             with self.subTest(name):
                 self.assertFalse(checks.check_page(OCR_EN, resp, stop)["ok"])
+
+    def test_unclosed_refs_are_closed(self):
+        r = checks.check_page(OCR_EN, GOOD.replace("^12^", "^12"))
+        self.assertTrue(r["ok"], r["reason"])
+        self.assertNotIn("^12 ", r["text"])
+        self.assertFalse(any("without a" in w for w in r["warnings"]))
 
     def test_script_flip(self):
         heb = "אמר הרבי מקוצק שהאמת אינה ניתנת לחיקוי כלל ועיקר והוסיף עוד דברים רבים " * 3

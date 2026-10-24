@@ -306,6 +306,35 @@ def finish(out_dir, proof_path, ocr, change_flag):
     return proof, path
 
 
+def recheck(out_dir, change_flag=CHANGE_FLAG):
+    """Run the checks again on the saved proofread text, without calling the API.
+
+    For pages proofread before a check or a normalisation was added. A page whose text or warnings change gets a
+    new record (the old one stays in the file); a page that now fails a hard check is left as it was and listed.
+    Returns ([pages updated], [(page, reason) that failed]).
+    """
+    out_dir = Path(out_dir)
+    proof_path = out_dir / "proof.jsonl"
+    ocr = rec.latest_by_page(rec.load_records(out_dir / "ocr.jsonl"))
+    proof = rec.latest_by_page(rec.load_records(proof_path))
+    updated, failed = [], []
+    for n, r in sorted(proof.items()):
+        if r.get("status") != "ok" or n not in ocr:
+            continue
+        resp = r["text"] + (f"\np. {r['printed_page']}" if r.get("printed_page") else "")
+        chk = checks.check_page(ocr[n]["text"], resp, vision=r.get("mode") == "vision")
+        if not chk["ok"]:
+            failed.append((n, chk["reason"]))
+            continue
+        new = ok_record(ocr[n], chk, r["model"], r["mode"], r["language"], r["attempts"], r["usage"], change_flag)
+        if (new["text"], new["warnings"]) != (r["text"], r.get("warnings", [])):
+            new["note"] = "rechecked without an API call"
+            rec.append_record(proof_path, new)
+            updated.append(n)
+    finish(out_dir, proof_path, ocr, change_flag)
+    return updated, failed
+
+
 def run(out_dir, language="auto", model=DEFAULT_MODEL, effort="low", vision="auto",
         repair=False, pages=None, redo_all=False, batch=False, change_flag=CHANGE_FLAG, client=None):
     out_dir = Path(out_dir)

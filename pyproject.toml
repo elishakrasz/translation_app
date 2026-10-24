@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "book-translator"
+dynamic = ["version"]
+description = "The book translator engine: steps, state and checks for translating a book with Claude Code"
+readme = "docs/book-translator-app.md"
+requires-python = ">=3.12"
+dependencies = ["PyYAML>=6", "ocrkit"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[project.scripts]
+translator = "translator.cli:main"
+
+[tool.setuptools]
+packages = ["translator"]
+
+[tool.setuptools.dynamic]
+version = {attr = "translator.__version__"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

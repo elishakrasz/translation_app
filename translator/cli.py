@@ -1,0 +1,185 @@
+"""The translator command line.
+
+    translator init PATH [--title T] [--house koren]    make a project folder (never overwrites)
+    translator status                                   where every unit stands; rewrites state.md
+    translator doctor                                   check the Mac and the project
+    translator upgrade                                  refresh the project's slash commands from the engine
+    translator clean [UNITS] [--write]                  Step 1: proofread pages -> source/cleaned/ (dry run first)
+    translator chunk [UNITS] [--write]                  Step 1: cleaned units -> chunks with permanent IDs
+    translator gate UNIT|all STEP --accept|--reject [--note N]   record your decision at a step's gate
+
+UNITS: ch01, ch01,ch02, intro-ch02 or all (the default).
+"""
+
+import argparse
+import sys
+
+from . import bootstrap, chunk, clean, generate, records
+from .project import Project, ProjectError
+from .state import STEPS, State, today
+
+
+def cmd_init(a):
+    project, made = bootstrap.init(a.path, a.title, a.house)
+    print(f"Project: {project.root}")
+    print("Made: " + (", ".join(made) if made else "nothing (everything was already there)"))
+    print(f"Next: put the publisher's files or scans in {project.root}/source/original/, then /ocr in Claude Code.")
+
+
+def cmd_status(a):
+    project = Project()
+    state = State(project)
+    generate.state_md(project, state)
+    print(f"{project.title}  ({project.root})\n")
+    width = max(len(u["id"]) for u in project.units) if project.units else 4
+    print(f"{'unit':<{width}}  {'last passed':<12}  waiting for")
+    for u in project.units:
+        print(f"{u['id']:<{width}}  {state.last_passed(u['id']) or '—':<12}  {state.waiting_for(u['id'])}")
+    v = bootstrap.commands_version(project)
+    from . import __version__
+    if v != __version__:
+        print(f"\n⚠ The project's slash commands are from engine {v}; the engine is {__version__}. Run `translator upgrade`.")
+
+
+def cmd_doctor(a):
+    try:
+        project = Project()
+    except ProjectError:
+        project = None
+    bad = 0
+    for ok, what, detail in bootstrap.doctor(project):
+        mark = "✓" if ok else ("·" if ok is None else "✗")
+        bad += ok is False
+        print(f"{mark} {what}" + (f"  — {detail}" if detail and not ok or (ok and detail and what.startswith(('Python', 'LibreOffice'))) else ""))
+    print("\nAll required checks pass." if not bad else f"\n{bad} required check(s) failed.")
+    return 1 if bad else 0
+
+
+def cmd_upgrade(a):
+    project = Project()
+    made = bootstrap.upgrade(project)
+    generate.claude_md(project)
+    generate.state_md(project)
+    print("Updated: " + (", ".join(made) if made else "nothing; already current"))
+
+
+def refuse_if_blocked(state, units, step, force):
+    blocked = [msg for u in units for ok, msg in [state.can_start(u["id"], step)] if not ok]
+    if blocked and not force:
+        for msg in blocked:
+            print("✗ " + msg)
+        sys.exit(1)
+
+
+def cmd_clean(a):
+    project = Project()
+    units = project.select(a.units)
+    state = State(project)
+    done = [u["id"] for u in units if project.unit_dir(u).joinpath("blocks.jsonl").exists()]
+    if done and a.write and not a.force:
+        sys.exit(f"✗ {', '.join(done)} already chunked: its IDs are permanent, so its source isn't re-cleaned here.")
+    results, rep, problems = clean.run(project, units, write=a.write)
+    for p in problems:
+        print("✗ " + p)
+    for r in results:
+        status = f"{len(r.errors)} error(s)" if r.errors else "ok"
+        print(f"{r.unit['id']:<8} pages {r.pages[0] if r.pages else '—'}–{r.pages[-1] if r.pages else '—'}  "
+              f"blocks {sum(1 for b in r.blocks if b.kind != 'page')}  notes {len(r.notes)}  {status}")
+    print(f"\nReport: {rep.relative_to(project.root)}")
+    failed = problems or any(r.errors for r in results)
+    if a.write and not failed:
+        for r in results:
+            state.set(r.unit["id"], "clean", "awaiting-gate", report=str(rep.relative_to(project.root)), date=today())
+        state.save()
+        generate.state_md(project, state)
+        print("Written to source/cleaned/. Each unit now waits for your decision: "
+              "`translator gate <unit> clean --accept` once you have read it.")
+    elif a.write:
+        print("Nothing written: fix the errors in the report first.")
+    else:
+        print("Dry run: previews in work/clean/preview/. Run again with --write to write source/cleaned/.")
+    return 1 if failed else 0
+
+
+def cmd_chunk(a):
+    project = Project()
+    units = project.select(a.units)
+    state = State(project)
+    refuse_if_blocked(state, units, "chunk", a.force)
+    bad = 0
+    for u in units:
+        summary, problem = chunk.run(project, u, write=a.write)
+        if problem:
+            print("✗ " + problem)
+            bad += 1
+            continue
+        if summary["unchanged"]:
+            print(f"{u['id']:<8} already chunked, unchanged ({summary['blocks']} blocks)")
+            continue
+        sizes = ", ".join(f"{n}:{c}" for n, c, *_ in summary["chunks"])
+        print(f"{u['id']:<8} {summary['blocks']} blocks ({summary['notes']} notes) → {len(summary['chunks'])} chunks "
+              f"[blocks:chars {sizes}]")
+        if a.write:
+            state.set(u["id"], "chunk", "passed", date=today(), note="IDs assigned")
+    if a.write:
+        state.save()
+        generate.state_md(project, state)
+        print("\nWritten to units/. IDs are now permanent.")
+    else:
+        print("\nDry run: nothing written. Run again with --write to write units/ and assign the IDs.")
+    return 1 if bad else 0
+
+
+def cmd_gate(a):
+    project = Project()
+    units = project.select(a.unit)
+    state = State(project)
+    rows = []
+    for u in units:
+        s = state.state_of(u["id"], a.step)
+        if s != "awaiting-gate":
+            print(f"✗ {u['id']}: {a.step} is {s}, not waiting for a decision")
+            continue
+        new = "passed" if a.accept else "ready"
+        state.set(u["id"], a.step, new, date=today(), note=a.note, report=state.step(u["id"], a.step).get("report"))
+        rows.append({"step": a.step, "unit": u["id"], "question": f"pass the {a.step} gate?",
+                     "answer": "accepted" if a.accept else "rejected", "note": a.note})
+        print(f"{u['id']}: {a.step} {'passed' if a.accept else 'sent back (ready to redo)'}")
+    if rows:
+        records.append(project, "decisions", rows, by="translator gate")
+        state.save()
+        generate.state_md(project, state)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="translator", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("init", help="make a project folder")
+    p.add_argument("path")
+    p.add_argument("--title")
+    p.add_argument("--house", default="koren")
+    sub.add_parser("status", help="where every unit stands")
+    sub.add_parser("doctor", help="check the Mac and the project")
+    sub.add_parser("upgrade", help="refresh the project's slash commands")
+    for name, help_ in (("clean", "Step 1: proofread pages -> cleaned units"), ("chunk", "Step 1: chunks and IDs")):
+        p = sub.add_parser(name, help=help_)
+        p.add_argument("units", nargs="?", default="all")
+        p.add_argument("--write", action="store_true", help="write the files (default: dry run)")
+        p.add_argument("--force", action="store_true", help="for emergencies; recorded")
+    p = sub.add_parser("gate", help="record your decision at a gate")
+    p.add_argument("unit")
+    p.add_argument("step", choices=STEPS)
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("--accept", action="store_true")
+    g.add_argument("--reject", action="store_true")
+    p.add_argument("--note")
+    a = ap.parse_args(argv)
+    try:
+        return {"init": cmd_init, "status": cmd_status, "doctor": cmd_doctor, "upgrade": cmd_upgrade,
+                "clean": cmd_clean, "chunk": cmd_chunk, "gate": cmd_gate}[a.cmd](a) or 0
+    except ProjectError as e:
+        sys.exit(f"✗ {e}")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

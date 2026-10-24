@@ -48,6 +48,7 @@ def check_page(ocr_text, response, stop_reason="end_turn", vision=False):
         return res
 
     text, printed = tf.split_printed_page(response.strip())
+    text = tf.normalise(text)
     res["text"], res["printed"] = text, printed
     if not text.strip():
         res["reason"] = "empty response"

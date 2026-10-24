@@ -1,0 +1,24 @@
+book:
+  title: null
+  author: null
+  edition: null
+  source_language: en
+  target_language: he
+house: koren
+sources_received: []      # - {file: Part1.pdf, ocr: part1, contents: "..."}  (source/original/ -> source/ocr/<ocr>/)
+units: []                 # - {id: ch01, slug: ..., title: "...", start: {part: part1, page: 2}, label: "פרק א'"}
+running_heads: []         # text dropped at the top of a page, besides the book and unit titles
+source_quirks: []         # recorded, never "fixed": - {unit: ch05, note: "no note 80 in the original"}
+audience: educated lay reader
+style_sheet: style/style-sheet.md
+reviewers: [fable, opus]
+translator_model: opus
+agents:
+  parallel: 4
+chunking: {target_chars: 6000, max_chars: 8000}
+policies:
+  spelling: ktiv-male
+  spelling_forms: {}
+  divine_names: koren-default
+  keep_yiddish: true
+  glosses_in_quotes: true
