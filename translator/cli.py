@@ -10,6 +10,7 @@
     translator glossary merge|page|apply [FILE] [--write]   Step 2b: the glossary and its review page
     translator translate prompts [UNITS] [--chunks 3,7]     Step 4: each chunk's prompt, from the foundations
     translator verses check|vocalise [UNITS] [--write]      check the pointed verses / point the unpointed ones, from Sefaria
+    translator sources list|find|text|integrate …          Step 5: provisional quotations → verified originals
 
 UNITS: ch01, ch01,ch02, intro-ch02 or all (the default).
 """
@@ -17,7 +18,7 @@ UNITS: ch01, ch01,ch02, intro-ch02 or all (the default).
 import argparse
 import sys
 
-from . import bootstrap, chunk, clean, generate, glossary, records, translate, verses
+from . import bootstrap, chunk, clean, generate, glossary, records, sources, translate, verses
 from .project import Project, ProjectError
 from .state import STEPS, State, today
 
@@ -226,6 +227,39 @@ def cmd_verses(a):
             print("  Dry run: --write applies the corrections and records them in edits.jsonl.")
 
 
+def cmd_sources(a):
+    project = Project()
+    if a.action == "find":
+        for ref, version, snippet in sources.find(" ".join(a.args), size=a.size):
+            print(f"{ref}  [{version}]\n    {snippet}")
+        return
+    if a.action == "text":
+        t = sources.text(" ".join(a.args))
+        print(f"{t['ref']}  [{t['version']}]")
+        for i, seg in enumerate(t["segments"], 1):
+            print(f"  {i}: {seg}")
+        return
+    unit = project.unit(a.args[0]) if a.args else sys.exit("✗ name the unit")
+    if a.action == "list":
+        items, out = sources.write_list(project, unit)
+        print(f"{unit['id']}: {len(items)} provisional quotation(s) → {out.relative_to(project.root)}")
+        return
+    bundles = a.args[1:] or sorted(str(p) for p in project.work("sources").glob(f"{unit['id']}-bundle*.json"))
+    state = State(project)
+    refuse_if_blocked(state, [unit], "sources", a.force)
+    bad = 0
+    for b in bundles:
+        for item, status, detail in sources.integrate(project, unit, b, write=a.write):
+            bad += status == "FAILS"
+            print(f"  {status:<14} {item:<16} {detail}")
+    if a.write and not bad:
+        print("Written. The quotations are recorded in records/quotations.jsonl: they are now locked.")
+    elif bad:
+        print(f"✗ {bad} entr(ies) fail: nothing written. Fix the bundle and run again.")
+    else:
+        print("Dry run: --write puts the verified originals in.")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="translator", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -257,6 +291,12 @@ def main(argv=None):
     p.add_argument("action", choices=["check", "vocalise"])
     p.add_argument("units", nargs="?", default="all")
     p.add_argument("--write", action="store_true")
+    p = sub.add_parser("sources", help="Step 5: list the provisional quotations, find originals on Sefaria, put them in")
+    p.add_argument("action", choices=["list", "find", "text", "integrate"])
+    p.add_argument("args", nargs="*", help="list/integrate: UNIT [bundle…]; find: Hebrew words; text: a Sefaria ref")
+    p.add_argument("--size", type=int, default=8)
+    p.add_argument("--write", action="store_true")
+    p.add_argument("--force", action="store_true")
     p = sub.add_parser("glossary", help="Step 2b: merge the extractions, build the review page, apply decisions")
     p.add_argument("action", choices=["merge", "page", "apply"])
     p.add_argument("file", nargs="?", help="for apply: the downloaded glossary-decisions.json")
@@ -264,7 +304,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     try:
         return {"init": cmd_init, "status": cmd_status, "doctor": cmd_doctor, "upgrade": cmd_upgrade,
-                "clean": cmd_clean, "chunk": cmd_chunk, "gate": cmd_gate, "glossary": cmd_glossary, "translate": cmd_translate, "verses": cmd_verses}[a.cmd](a) or 0
+                "clean": cmd_clean, "chunk": cmd_chunk, "gate": cmd_gate, "glossary": cmd_glossary, "translate": cmd_translate, "verses": cmd_verses, "sources": cmd_sources}[a.cmd](a) or 0
     except ProjectError as e:
         sys.exit(f"✗ {e}")
 
