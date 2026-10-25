@@ -9,6 +9,7 @@
     translator gate UNIT|all STEP --accept|--reject [--note N]   record your decision at a step's gate
     translator glossary merge|page|apply [FILE] [--write]   Step 2b: the glossary and its review page
     translator translate prompts [UNITS] [--chunks 3,7]     Step 4: each chunk's prompt, from the foundations
+    translator verses check|vocalise [UNITS] [--write]      check the pointed verses / point the unpointed ones, from Sefaria
 
 UNITS: ch01, ch01,ch02, intro-ch02 or all (the default).
 """
@@ -16,7 +17,7 @@ UNITS: ch01, ch01,ch02, intro-ch02 or all (the default).
 import argparse
 import sys
 
-from . import bootstrap, chunk, clean, generate, glossary, records, translate
+from . import bootstrap, chunk, clean, generate, glossary, records, translate, verses
 from .project import Project, ProjectError
 from .state import STEPS, State, today
 
@@ -199,6 +200,32 @@ def cmd_translate(a):
               f"  (term-table rows {terms}, decided terms {sum(b[3] for b in built)})")
 
 
+def cmd_verses(a):
+    project = Project()
+    for u in project.select(a.units):
+        if not list(project.unit_dir(u).glob("output_chunk*.md")):
+            continue
+        if a.action == "vocalise":
+            changes = verses.vocalise(project, u, write=a.write)
+            print(f"{u['id']}: {len(changes)} unpointed verse quotation(s) " + ("vocalised" if a.write else "to vocalise"))
+            for bid, ref, before, after in changes:
+                print(f"  {bid} {ref}: {before}  →  {after}")
+            if changes and not a.write:
+                print("  Dry run: --write applies them and records them in edits.jsonl.")
+            continue
+        fixes, singles, missing, chapters = verses.check(project, u, write=a.write)
+        print(f"{u['id']}: {len(chapters)} chapters checked against Sefaria — {len(fixes)} correction(s), "
+              f"{len(singles)} single word(s) differing, {len(missing)} phrase(s) not found")
+        for _, bid, ref, before, after in fixes:
+            print(f"  fix  {bid} {ref}: {before}  →  {after}")
+        for _, bid, ref, before, good in singles:
+            print(f"  word {bid} {ref}: {before} (Sefaria: {good}) — left as it is")
+        for _, bid, run in missing:
+            print(f"  ?    {bid}: {run}")
+        if not a.write and fixes:
+            print("  Dry run: --write applies the corrections and records them in edits.jsonl.")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="translator", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -226,6 +253,10 @@ def main(argv=None):
     p.add_argument("units", nargs="?", default="all")
     p.add_argument("--chunks", help="only these chunks, e.g. 3,7")
     p.add_argument("--force", action="store_true")
+    p = sub.add_parser("verses", help="check the vocalised Bible verses against Sefaria")
+    p.add_argument("action", choices=["check", "vocalise"])
+    p.add_argument("units", nargs="?", default="all")
+    p.add_argument("--write", action="store_true")
     p = sub.add_parser("glossary", help="Step 2b: merge the extractions, build the review page, apply decisions")
     p.add_argument("action", choices=["merge", "page", "apply"])
     p.add_argument("file", nargs="?", help="for apply: the downloaded glossary-decisions.json")
@@ -233,7 +264,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     try:
         return {"init": cmd_init, "status": cmd_status, "doctor": cmd_doctor, "upgrade": cmd_upgrade,
-                "clean": cmd_clean, "chunk": cmd_chunk, "gate": cmd_gate, "glossary": cmd_glossary, "translate": cmd_translate}[a.cmd](a) or 0
+                "clean": cmd_clean, "chunk": cmd_chunk, "gate": cmd_gate, "glossary": cmd_glossary, "translate": cmd_translate, "verses": cmd_verses}[a.cmd](a) or 0
     except ProjectError as e:
         sys.exit(f"✗ {e}")
 

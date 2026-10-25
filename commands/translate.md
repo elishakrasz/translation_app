@@ -12,7 +12,10 @@ Translate `$ARGUMENTS` (a unit id, optionally `--chunks`).
 3. When all are back, check each chunk's structure: `<python> legacy/tools/check_structure.py units/<unit-folder> <NNNN…>`
    with TRANSLATOR_PROJECT set to this folder (the python and legacy folder are next to {{TRANSLATOR}}). A chunk that
    fails goes back to a new sub-agent once, with the failure added; if it fails again, report it.
-4. Report per chunk: blocks, `[לבדיקה]` flags, notes written. Then list, from the notes files, every gloss dropped or
+4. Point and check the Bible verses against Sefaria: `{{TRANSLATOR}} verses vocalise <unit> --write`, then
+   `{{TRANSLATOR}} verses check <unit> --write`. Show me what they changed, the single words left as they are, and
+   the phrases not found.
+5. Report per chunk: blocks, `[לבדיקה]` flags, notes written. Then list, from the notes files, every gloss dropped or
    folded in (style rule 10) and every pun recreated, for my approval.
 
 Don't run anything that writes outside units/<unit>/ and work/translate/. The translation waits for my reading; the
