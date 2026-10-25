@@ -19,3 +19,6 @@ node_modules/
 
 # book projects: scans and working files stay local (each book can get its own repo)
 /projects/
+
+# the reference library: scans, samples and whole works (large, partly copyrighted)
+/library/

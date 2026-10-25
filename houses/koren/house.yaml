@@ -1,0 +1,50 @@
+# Koren / Maggid house defaults. A book's project.yaml `policies` overrides any of these, and the book's style sheet
+# records why. Rules and their sources: footnote-style.md (K = seen in a Koren/Maggid book, J = Yad Ben-Zvi / Shazar
+# guidelines, D = translator's decision).
+
+name: Koren Publishers Jerusalem / Maggid Books
+footnote_style: footnote-style.md
+index_spec: index-spec.md            # to write: the house-level parts of the Rosen index spec (section 8, Step 14)
+
+divine_names:
+  form: א־לוהים                       # with maqaf; also א־לוהות, א־לוהי
+  keep: ["ה'", 'הקב"ה']
+  never: [אלוהים, האל]
+  quotations: keep their own spelling
+
+spelling:
+  policy: ktiv-male                   # Academy full spelling; the book fixes its own variant forms
+
+titles:
+  hebrew_works: unmarked              # no quotation marks, no italics, in body and notes
+  articles_and_chapters: quoted       # in quotation marks
+  foreign_works: own script, italic   # left to right, nothing Hebrew mixed into the citation
+
+footnotes:
+  placement: foot of page, numbered afresh in each chapter
+  number_after_punctuation: true      # before a dash
+  on_headings: false
+  system: A                           # short form in the notes + רשימת קיצורים ביבליוגרפיים at the end
+  numbered_sections: "סי'"
+  see: "ראו:"
+  compare: "השוו:"
+  see_also: "ראו עוד:"
+  ibid: "שם"
+  pages: "עמ'"
+  ranges: en dash, in full            # עמ' 378–365
+  years: Hebrew year for Hebrew books, civil year for foreign books
+
+references:
+  bible: "תהלים ס\"ג, ב–ג"             # chapter with geresh/gershayim, comma, verse; book names never abbreviated
+  bavli: "בבלי, ברכות ה ע\"ב"
+  yerushalmi: "ירושלמי, ברכות ב, ג"
+  midrash: "בראשית רבה סה, טז"
+  commentary: "רש\"י על רות ג', ט"
+  folio: "ל ע\"ב"
+
+markers:                              # Appendix D of the design
+  to_check: "[לבדיקה: …]"
+  accepted_translation: "[תרגום מקובל קיים]"
+  original_differs: "==…=="
+  author_insertion_in_quote: "==[…]=="
+  translator_gloss_in_quote: "[=…]"

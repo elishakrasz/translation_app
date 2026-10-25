@@ -7,6 +7,8 @@
     translator clean [UNITS] [--write]                  Step 1: proofread pages -> source/cleaned/ (dry run first)
     translator chunk [UNITS] [--write]                  Step 1: cleaned units -> chunks with permanent IDs
     translator gate UNIT|all STEP --accept|--reject [--note N]   record your decision at a step's gate
+    translator glossary merge|page|apply [FILE] [--write]   Step 2b: the glossary and its review page
+    translator translate prompts [UNITS] [--chunks 3,7]     Step 4: each chunk's prompt, from the foundations
 
 UNITS: ch01, ch01,ch02, intro-ch02 or all (the default).
 """
@@ -14,7 +16,7 @@ UNITS: ch01, ch01,ch02, intro-ch02 or all (the default).
 import argparse
 import sys
 
-from . import bootstrap, chunk, clean, generate, records
+from . import bootstrap, chunk, clean, generate, glossary, records, translate
 from .project import Project, ProjectError
 from .state import STEPS, State, today
 
@@ -151,6 +153,52 @@ def cmd_gate(a):
         generate.state_md(project, state)
 
 
+def cmd_glossary(a):
+    project = Project()
+    if a.action == "merge":
+        labels, merged = glossary.merge(project)
+        s = glossary.summary(labels, merged)
+        print(f"Merged {', '.join(labels)}: {s['terms']} terms — {s['agree']} agree, {s['differ']} differ, "
+              f"{s['only_one']} found by one extractor; {s['in_reference']} also in a reference glossary.")
+        print("By category: " + ", ".join(f"{k} {v}" for k, v in s["by_category"].items()))
+        print("Written: work/glossary/merged.json. Next: `translator glossary page`.")
+    elif a.action == "page":
+        out, s = glossary.page(project)
+        print(f"Review page: {out.relative_to(project.root)} ({s['terms']} terms). Open it, decide, and download "
+              f"the decisions; then `translator glossary apply <glossary-decisions.json>`.")
+    elif a.action == "apply":
+        if not a.file:
+            sys.exit("✗ apply needs the decisions file the review page downloaded")
+        terms, problems, undecided, resolved = glossary.apply(project, a.file, write=a.write)
+        for alias, term in resolved:
+            print(f"· {alias!r} dropped as an alias of {term!r}: it has its own entry")
+        for p in problems:
+            print("✗ " + p)
+        print(f"{len(terms)} terms to write; {len(undecided)} not decided yet.")
+        if a.write and not problems:
+            print("Written: terms/glossary.json.")
+        elif not a.write:
+            print("Dry run: run again with --write to write terms/glossary.json.")
+        return 1 if problems else 0
+
+
+def cmd_translate(a):
+    project = Project()
+    units = project.select(a.units)
+    state = State(project)
+    refuse_if_blocked(state, units, "translate", a.force)
+    try:
+        f = translate.foundations(project)
+    except translate.FoundationsMissing as e:
+        sys.exit(f"✗ {e}")
+    chunks = [c for c in a.chunks.split(",")] if a.chunks else None
+    for u in units:
+        built = translate.build(project, u, f, chunks)
+        terms = sum(b[2] for b in built)
+        print(f"{u['id']:<8} {len(built)} prompts → {(project.work('translate') / project.unit_name(u)).relative_to(project.root)}/"
+              f"  (term-table rows {terms}, decided terms {sum(b[3] for b in built)})")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="translator", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -173,10 +221,19 @@ def main(argv=None):
     g.add_argument("--accept", action="store_true")
     g.add_argument("--reject", action="store_true")
     p.add_argument("--note")
+    p = sub.add_parser("translate", help="Step 4: build each chunk's prompt from the foundations")
+    p.add_argument("action", choices=["prompts"])
+    p.add_argument("units", nargs="?", default="all")
+    p.add_argument("--chunks", help="only these chunks, e.g. 3,7")
+    p.add_argument("--force", action="store_true")
+    p = sub.add_parser("glossary", help="Step 2b: merge the extractions, build the review page, apply decisions")
+    p.add_argument("action", choices=["merge", "page", "apply"])
+    p.add_argument("file", nargs="?", help="for apply: the downloaded glossary-decisions.json")
+    p.add_argument("--write", action="store_true")
     a = ap.parse_args(argv)
     try:
         return {"init": cmd_init, "status": cmd_status, "doctor": cmd_doctor, "upgrade": cmd_upgrade,
-                "clean": cmd_clean, "chunk": cmd_chunk, "gate": cmd_gate}[a.cmd](a) or 0
+                "clean": cmd_clean, "chunk": cmd_chunk, "gate": cmd_gate, "glossary": cmd_glossary, "translate": cmd_translate}[a.cmd](a) or 0
     except ProjectError as e:
         sys.exit(f"✗ {e}")
 
