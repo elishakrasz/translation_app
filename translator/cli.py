@@ -6,11 +6,15 @@
     translator upgrade                                  refresh the project's slash commands from the engine
     translator clean [UNITS] [--write]                  Step 1: proofread pages -> source/cleaned/ (dry run first)
     translator chunk [UNITS] [--write]                  Step 1: cleaned units -> chunks with permanent IDs
-    translator gate UNIT|all STEP --accept|--reject [--note N]   record your decision at a step's gate
+    translator gate UNIT|all STEP --accept|--reject [--note N]   record your decision at a step's gate (refused while `check` has errors)
+    translator check [UNITS]                                every check: structure, quotation lock, style, bibliography
     translator glossary merge|page|apply [FILE] [--write]   Step 2b: the glossary and its review page
     translator translate prompts [UNITS] [--chunks 3,7]     Step 4: each chunk's prompt, from the foundations
     translator verses check|vocalise [UNITS] [--write]      check the pointed verses / point the unpointed ones, from Sefaria
     translator sources list|find|text|integrate …          Step 5: provisional quotations → verified originals
+    translator notes input|page|write UNIT [FILE] [--write] Step 6: the notes in house style, and the bibliography
+    translator review pairs|page|apply|stats [UNIT] [FILE]  Step 8: two reviewers' findings, your decisions
+    translator style pairs|page|apply UNIT [FILE]           Step 9: the five style passes, your decisions
 
 UNITS: ch01, ch01,ch02, intro-ch02 or all (the default).
 """
@@ -18,7 +22,7 @@ UNITS: ch01, ch01,ch02, intro-ch02 or all (the default).
 import argparse
 import sys
 
-from . import bootstrap, chunk, clean, generate, glossary, records, sources, translate, verses
+from . import bootstrap, check, chunk, clean, generate, glossary, notes, records, review, sources, translate, verses
 from .project import Project, ProjectError
 from .state import STEPS, State, today
 
@@ -139,7 +143,13 @@ def cmd_gate(a):
     units = project.select(a.unit)
     state = State(project)
     rows = []
+    results = check.run(project, units) if a.accept else {}
     for u in units:
+        if a.accept and (errs := check.errors(results, u["id"])):
+            print(f"✗ {u['id']}: {len(errs)} error(s) from `translator check` — the gate can't pass until they're fixed")
+            for _, name, where, msg in errs[:10]:
+                print(f"    {name} {where}: {msg}")
+            continue
         s = state.state_of(u["id"], a.step)
         if s != "awaiting-gate":
             print(f"✗ {u['id']}: {a.step} is {s}, not waiting for a decision")
@@ -260,6 +270,125 @@ def cmd_sources(a):
         print("Dry run: --write puts the verified originals in.")
 
 
+def cmd_notes(a):
+    project = Project()
+    unit = project.unit(a.unit)
+    if a.action == "input":
+        refuse_if_blocked(State(project), [unit], "notes", a.force)
+        items, out = notes.write_input(project, unit)
+        print(f"{unit['id']}: {len(items)} notes → {out.relative_to(project.root)} ({sum(bool(i['locked']) for i in items)} with locked quotations)")
+    elif a.action == "page":
+        out, n, changed = notes.page(project, unit)
+        print(f"Review page: {out.relative_to(project.root)} ({n} notes, {changed} changed). Decide, download the decisions, "
+              f"then `translator notes write {unit['id']} <notes-decisions-{unit['id']}.json> --write`.")
+    else:
+        if not a.file:
+            sys.exit("✗ write needs the decisions file the review page downloaded")
+        applied, problems = notes.write(project, unit, a.file, write=a.write)
+        for p in problems:
+            print("✗ " + p)
+        print(f"{len(applied)} note(s) to change." + ("" if a.write else " Dry run: --write applies them."))
+        if a.write and not problems:
+            state = State(project)
+            state.set(unit["id"], "notes", "awaiting-gate", report=f"review/notes/{unit['id']}/", date=today())
+            state.save()
+            generate.state_md(project, state)
+            print("Written. The notes wait at the gate: `translator gate " + unit["id"] + " notes --accept`.")
+        return 1 if problems else 0
+
+
+def cmd_check(a):
+    project = Project()
+    results = check.run(project, project.select(a.units))
+    bad = 0
+    for uid, rows in results.items():
+        if not rows:
+            continue
+        e = [r for r in rows if r[0] == "error"]
+        flags = sum(int(r[3].split()[0]) for r in rows if r[1] == "flags")
+        print(f"{uid}: {len(e)} error(s), {flags} open flag(s)")
+        for level, name, where, msg in rows:
+            if level != "info":
+                print(f"  {level:<7} {name:<11} {where:<14} {msg}")
+        bad += len(e)
+    print("All checks pass." if not bad else f"{bad} error(s).")
+    return 1 if bad else 0
+
+
+def cmd_review(a):
+    project = Project()
+    if a.action == "stats":
+        for reviewer, cats in review.stats(project).items():
+            print(reviewer)
+            for cat, d in sorted(cats.items()):
+                total = sum(d.values())
+                print(f"  {cat:<16} {total:>3}  " + "  ".join(f"{k} {v}" for k, v in sorted(d.items())))
+        return
+    unit = project.unit(a.unit)
+    if a.action == "external":
+        from . import external
+        print(f"{unit['id']}: reviewer '{a.name}' = {a.provider} {a.model}")
+        path, found, usage, bad = external.review(project, unit, a.provider, a.model, a.name)
+        print(f"{len(found)} finding(s) → {path.relative_to(project.root)}; tokens in {usage['prompt_tokens']}, "
+              f"out {usage['completion_tokens']}" + (f"; {bad} batch(es) not valid JSON" if bad else ""))
+        print("Rebuild the page: `translator review page " + unit["id"] + "`.")
+        return
+    if a.action == "pairs":
+        refuse_if_blocked(State(project), [unit], "review", a.force)
+        items, md = review.write_pairs(project, unit)
+        print(f"{unit['id']}: {len(items)} pairs → {md.relative_to(project.root)} "
+              f"({sum(bool(i['locked']) for i in items)} blocks with locked quotations)")
+    elif a.action == "page":
+        out, summary, problems = review.page(project, unit)
+        for p in problems:
+            print("  · " + p)
+        print(summary)
+        print(f"Review page: {out.relative_to(project.root)}. Decide, download, then `translator review apply {unit['id']} <file> --write`.")
+    else:
+        if not a.file:
+            sys.exit("✗ apply needs the decisions file the review page downloaded")
+        applied, problems = review.apply(project, unit, a.file, write=a.write)
+        for p in problems:
+            print("✗ " + p)
+        print(f"{len(applied)} change(s) to make." + ("" if a.write else " Dry run: --write makes them."))
+        if a.write and not problems:
+            state = State(project)
+            state.set(unit["id"], "review", "awaiting-gate", report=f"review/review/{unit['id']}/", date=today())
+            state.save()
+            generate.state_md(project, state)
+            print("Written, and every finding recorded with its decision. Gate: `translator gate " + unit["id"] + " review --accept`.")
+        return 1 if problems else 0
+
+
+def cmd_style(a):
+    project = Project()
+    unit = project.unit(a.unit)
+    if a.action == "pairs":
+        refuse_if_blocked(State(project), [unit], "style", a.force)
+        items, md = review.write_pairs(project, unit, step="style")
+        print(f"{unit['id']}: {len(items)} pairs → {md.relative_to(project.root)}")
+    elif a.action == "page":
+        out, summary, problems = review.page(project, unit, step="style")
+        for p in problems:
+            print("  · " + p)
+        print(summary)
+        print(f"Style page: {out.relative_to(project.root)}. Decide, download, then `translator style apply {unit['id']} <file> --write`.")
+    else:
+        if not a.file:
+            sys.exit("✗ apply needs the decisions file the style page downloaded")
+        applied, problems = review.apply(project, unit, a.file, write=a.write, step="style")
+        for p in problems:
+            print("✗ " + p)
+        print(f"{len(applied)} change(s) to make." + ("" if a.write else " Dry run: --write makes them."))
+        if a.write and not problems:
+            state = State(project)
+            state.set(unit["id"], "style", "awaiting-gate", report=f"review/style/{unit['id']}/", date=today())
+            state.save()
+            generate.state_md(project, state)
+            print("Written. Gate: `translator gate " + unit["id"] + " style --accept`.")
+        return 1 if problems else 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="translator", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -291,6 +420,29 @@ def main(argv=None):
     p.add_argument("action", choices=["check", "vocalise"])
     p.add_argument("units", nargs="?", default="all")
     p.add_argument("--write", action="store_true")
+    p = sub.add_parser("review", help="Step 8: pairs for the reviewers, the review page, applying decisions, statistics")
+    p.add_argument("action", choices=["pairs", "page", "apply", "stats", "external"])
+    p.add_argument("--provider", default="openai")
+    p.add_argument("--model", default="gpt-6.1-sol")
+    p.add_argument("--name", default="openai")
+    p.add_argument("unit", nargs="?")
+    p.add_argument("file", nargs="?")
+    p.add_argument("--write", action="store_true")
+    p.add_argument("--force", action="store_true")
+    p = sub.add_parser("style", help="Step 9: the style passes — pairs, page, apply")
+    p.add_argument("action", choices=["pairs", "page", "apply"])
+    p.add_argument("unit")
+    p.add_argument("file", nargs="?")
+    p.add_argument("--write", action="store_true")
+    p.add_argument("--force", action="store_true")
+    p = sub.add_parser("check", help="every check on the text: structure, quotation lock, style, bibliography")
+    p.add_argument("units", nargs="?", default="all")
+    p = sub.add_parser("notes", help="Step 6: the notes in house style, and the bibliography")
+    p.add_argument("action", choices=["input", "page", "write"])
+    p.add_argument("unit")
+    p.add_argument("file", nargs="?", help="for write: the downloaded notes-decisions file")
+    p.add_argument("--write", action="store_true")
+    p.add_argument("--force", action="store_true")
     p = sub.add_parser("sources", help="Step 5: list the provisional quotations, find originals on Sefaria, put them in")
     p.add_argument("action", choices=["list", "find", "text", "integrate"])
     p.add_argument("args", nargs="*", help="list/integrate: UNIT [bundle…]; find: Hebrew words; text: a Sefaria ref")
@@ -304,7 +456,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     try:
         return {"init": cmd_init, "status": cmd_status, "doctor": cmd_doctor, "upgrade": cmd_upgrade,
-                "clean": cmd_clean, "chunk": cmd_chunk, "gate": cmd_gate, "glossary": cmd_glossary, "translate": cmd_translate, "verses": cmd_verses, "sources": cmd_sources}[a.cmd](a) or 0
+                "clean": cmd_clean, "chunk": cmd_chunk, "gate": cmd_gate, "glossary": cmd_glossary, "translate": cmd_translate, "verses": cmd_verses, "sources": cmd_sources, "notes": cmd_notes, "check": cmd_check, "review": cmd_review, "style": cmd_style}[a.cmd](a) or 0
     except ProjectError as e:
         sys.exit(f"✗ {e}")
 
