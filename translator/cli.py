@@ -15,6 +15,7 @@
     translator notes input|page|write UNIT [FILE] [--write] Step 6: the notes in house style, and the bibliography
     translator review pairs|page|apply|stats [UNIT] [FILE]  Step 8: two reviewers' findings, your decisions
     translator style pairs|page|apply UNIT [FILE]           Step 9: the five style passes, your decisions
+    translator build koren [UNITS]                          Step 10: the Koren draft, docx + pdf, bookmarked by block ID
 
 UNITS: ch01, ch01,ch02, intro-ch02 or all (the default).
 """
@@ -389,6 +390,36 @@ def cmd_style(a):
         return 1 if problems else 0
 
 
+def cmd_build(a):
+    from . import build
+    project = Project()
+    state = State(project)
+    for u in project.select(a.units):
+        ok, msg = state.can_start(u["id"], "build")
+        if not ok and not a.force:
+            print("✗ " + msg)
+            continue
+        try:
+            r = build.build(project, u)
+        except RuntimeError as e:
+            print(f"✗ {u['id']}: {e}")
+            continue
+        problems = ([f"notes referenced but missing: {r['missing_notes']}"] if r["missing_notes"] else []) + \
+                   ([f"{len(r['missing_bookmarks'])} block(s) without a bookmark: {r['missing_bookmarks'][:5]}"] if r["missing_bookmarks"] else []) + \
+                   ([f"blank page(s) in the pdf: {r['blank_pages']}"] if r.get("blank_pages") else [])
+        print(f"{u['id']}: {r['docx'].relative_to(project.root)} — {r['paragraphs']} paragraphs, {r['notes']} notes, "
+              f"{r['bookmarks']} bookmarks" + (f", {r['pages']} pages (pdf)" if r.get("pages") else ""))
+        for p in problems:
+            print("  ✗ " + p)
+        if r["unused_notes"]:
+            print(f"  · notes with no reference in the text: {r['unused_notes']}")
+        if not problems:
+            state.set(u["id"], "build", "awaiting-gate", report=str(r["docx"].relative_to(project.root)), date=today(),
+                      sha256=r["sha256"])
+    state.save()
+    generate.state_md(project, state)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="translator", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -435,6 +466,10 @@ def main(argv=None):
     p.add_argument("file", nargs="?")
     p.add_argument("--write", action="store_true")
     p.add_argument("--force", action="store_true")
+    p = sub.add_parser("build", help="Step 10: the Koren draft (docx + pdf), every block bookmarked by its ID")
+    p.add_argument("target", choices=["koren"])
+    p.add_argument("units", nargs="?", default="all")
+    p.add_argument("--force", action="store_true")
     p = sub.add_parser("check", help="every check on the text: structure, quotation lock, style, bibliography")
     p.add_argument("units", nargs="?", default="all")
     p = sub.add_parser("notes", help="Step 6: the notes in house style, and the bibliography")
@@ -456,7 +491,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     try:
         return {"init": cmd_init, "status": cmd_status, "doctor": cmd_doctor, "upgrade": cmd_upgrade,
-                "clean": cmd_clean, "chunk": cmd_chunk, "gate": cmd_gate, "glossary": cmd_glossary, "translate": cmd_translate, "verses": cmd_verses, "sources": cmd_sources, "notes": cmd_notes, "check": cmd_check, "review": cmd_review, "style": cmd_style}[a.cmd](a) or 0
+                "clean": cmd_clean, "chunk": cmd_chunk, "gate": cmd_gate, "glossary": cmd_glossary, "translate": cmd_translate, "verses": cmd_verses, "sources": cmd_sources, "notes": cmd_notes, "check": cmd_check, "review": cmd_review, "style": cmd_style, "build": cmd_build}[a.cmd](a) or 0
     except ProjectError as e:
         sys.exit(f"✗ {e}")
 
